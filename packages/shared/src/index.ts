@@ -11,3 +11,22 @@ export interface Point {
   x: number
   y: number
 }
+
+export type ShapeId = String
+
+export interface BaseShape {
+  id: ShapeId;
+  type: 'rect' | 'ellipse' | 'sticky' | 'text' | 'freehand';
+  x: number; y: number;        // world coords (top-left / anchor)
+  width: number; height: number;
+  rotation?: number;
+  z: number;                    // stacking order
+  // style fields: fill, stroke, etc. (per-type extensions)
+}
+
+
+export type Camera = {
+  x:number,
+  y:number,
+  zoom:number
+}
