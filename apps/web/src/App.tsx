@@ -1,36 +1,23 @@
-import type { Camera } from "@miro/shared";
 import {
   useEffect,
   useRef,
 } from "react";
+import { engine } from "./engine/engine";
 
 
-type Rectangle = {
-  x:number;
-  y:number;
-  width:number;
-  height:number;
-}
 
-type DragMode = "none" | "pan" | "object"
+type DragMode =
+  | "none"
+  | "pan"
+  | "object";
 
 function App() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef =
+    useRef<HTMLCanvasElement>(null);
 
-  const cameraRef = useRef<Camera>({
-    x: 0,
-    y: 0,
-    zoom: 1,
-  });
 
-  const rectangleRef = useRef<Rectangle>({
-    x:0,
-    y:0,
-    width:200,
-    height:200
-  })
-
-  const dragMode = useRef<DragMode>("none");
+  const dragMode =
+    useRef<DragMode>("none");
 
   const lastPointer = useRef({
     x: 0,
@@ -41,54 +28,81 @@ function App() {
     screenX: number,
     screenY: number
   ) {
-    const camera = cameraRef.current;
+    const camera = engine.getState().camera;
 
     return {
-      x: (screenX - camera.x) / camera.zoom,
-      y: (screenY - camera.y) / camera.zoom,
+      x:
+        (screenX - camera.x) /
+        camera.zoom,
+
+      y:
+        (screenY - camera.y) /
+        camera.zoom,
     };
   }
 
-
-  function resize(){
+  function resize() {
     const canvas = canvasRef.current;
 
     if (!canvas) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr =
+      window.devicePixelRatio || 1;
 
-    canvas.width = window.innerWidth * dpr
-    canvas.height = window.innerHeight * dpr
+    canvas.width =
+      window.innerWidth * dpr;
 
-    render()
+    canvas.height =
+      window.innerHeight * dpr;
 
+    render();
   }
 
-  function isPointInsideRectangle(x:number,y:number){
-    
-    
-    const rectangle = rectangleRef.current
+  function isPointInsideRectangle(
+    x: number,
+    y: number
+  ) {
+    const state = engine.getState();
+
+    const selectedShape =
+      Object.values(
+        state.document.shapes
+      )[0];
+
+    if (!selectedShape) {
+      return false;
+    }
 
     return (
-      x >= rectangle.x &&
-      x <= rectangle.x + rectangle.width &&
-      y >= rectangle.y &&
-      y <= rectangle.y + rectangle.height
-    )
-
+      x >= selectedShape.x &&
+      x <=
+        selectedShape.x +
+          selectedShape.width &&
+      y >= selectedShape.y &&
+      y <=
+        selectedShape.y +
+          selectedShape.height
+    );
   }
-  
+
   function render() {
     const canvas = canvasRef.current;
 
     if (!canvas) return;
 
-    const dpr = window.devicePixelRatio || 1;
-    const ctx = canvas.getContext("2d");
+    const ctx =
+      canvas.getContext("2d");
 
     if (!ctx) return;
 
-    const camera = cameraRef.current;
+    const dpr =
+      window.devicePixelRatio || 1;
+
+    const state =
+      engine.getState();
+
+    const camera =
+      state.camera;
 
     ctx.clearRect(
       0,
@@ -99,45 +113,84 @@ function App() {
 
     ctx.save();
 
-    ctx.scale(dpr,dpr)
-    ctx.translate(camera.x, camera.y);
-    ctx.scale(camera.zoom, camera.zoom);
+    /*
+     * Convert drawing coordinates from
+     * physical canvas pixels to CSS pixels.
+     */
+    ctx.scale(dpr, dpr);
 
-    // World
-    const rectangle = rectangleRef.current;
-    ctx.fillStyle = "black";
-    ctx.fillRect(
-      rectangle.x,
-      rectangle.y,
-      rectangle.width,
-      rectangle.height
+    /*
+     * Camera transform.
+     */
+    ctx.translate(
+      camera.x,
+      camera.y
     );
+
+    ctx.scale(
+      camera.zoom,
+      camera.zoom
+    );
+
+    /*
+     * World
+     */
+    for (const shape of Object.values(
+      state.document.shapes
+    )) {
+      ctx.fillStyle = "black";
+
+      ctx.fillRect(
+        shape.x,
+        shape.y,
+        shape.width,
+        shape.height
+      );
+    }
+
     ctx.restore();
   }
 
   function handlePointerDown(
     e: React.PointerEvent<HTMLCanvasElement>
   ) {
-    if (e.button !== 1 && e.button !== 0) return;
+    if (
+      e.button !== 0 &&
+      e.button !== 1
+    ) {
+      return;
+    }
 
     e.preventDefault();
 
+    const mouseWorld =
+      screenToWorld(
+        e.clientX,
+        e.clientY
+      );
 
-    const mouseWorld = screenToWorld(e.clientX,e.clientY)
     if (
-    e.button === 0 &&
-    isPointInsideRectangle(
-      mouseWorld.x,
-      mouseWorld.y
-    )
-  ) {
-    dragMode.current = "object";
-  } else {
-    dragMode.current = "pan";
-  }
+      e.button === 0 &&
+      isPointInsideRectangle(
+        mouseWorld.x,
+        mouseWorld.y
+      )
+    ) {
+      dragMode.current =
+        "object";
 
-    
-    e.currentTarget.setPointerCapture(e.pointerId);
+      engine.dispatch({
+        type: "SELECT",
+        ids: ["rectangle-1"],
+      });
+    } else {
+      dragMode.current =
+        "pan";
+    }
+
+    e.currentTarget.setPointerCapture(
+      e.pointerId
+    );
 
     lastPointer.current = {
       x: e.clientX,
@@ -148,104 +201,167 @@ function App() {
   function handlePointerMove(
     e: React.PointerEvent<HTMLCanvasElement>
   ) {
-    const mode = dragMode.current;
+    const mode =
+      dragMode.current;
 
-    if (mode === "none") return;
+    if (mode === "none") {
+      return;
+    }
 
-    const camera = cameraRef.current;
+    const state =
+      engine.getState();
+
+    const camera =
+      state.camera;
 
     const dx =
-    e.clientX - lastPointer.current.x;
+      e.clientX -
+      lastPointer.current.x;
 
     const dy =
-    e.clientY - lastPointer.current.y;
+      e.clientY -
+      lastPointer.current.y;
 
     if (mode === "pan") {
-      camera.x += dx;
-      camera.y += dy;
+      engine.dispatch({
+        type: "PAN",
+        dx,
+        dy,
+      });
     }
 
     if (mode === "object") {
-      const rectangle = rectangleRef.current;
+      const shape =
+        state.document.shapes[
+          "rectangle-1"
+        ];
 
-      rectangle.x += dx / camera.zoom;
-      rectangle.y += dy / camera.zoom;
+      if (shape) {
+        /*
+         * Pointer movement is in screen
+         * coordinates; convert the delta
+         * to world coordinates.
+         */
+        const worldDx =
+          dx / camera.zoom;
+        const worldDy =
+          dy / camera.zoom;
+
+        engine.dispatch({
+          type: "MOVE_SHAPE",
+          id: "rectangle-1",
+
+          from: {
+            x: shape.x,
+            y: shape.y,
+          },
+
+          to: {
+            x: shape.x + worldDx,
+            y: shape.y + worldDy,
+          },
+        });
+      }
     }
 
     lastPointer.current = {
       x: e.clientX,
       y: e.clientY,
     };
-
-    render();
-  }   
+  }
 
   function handlePointerUp(
     e: React.PointerEvent<HTMLCanvasElement>
   ) {
-    dragMode.current = 'none';
+    dragMode.current = "none";
 
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
+    if (
+      e.currentTarget.hasPointerCapture(
+        e.pointerId
+      )
+    ) {
+      e.currentTarget.releasePointerCapture(
+        e.pointerId
+      );
     }
   }
 
   useEffect(() => {
-    resize()
+    /*
+     * Renderer subscribes to engine.
+     *
+     * Every time the engine changes,
+     * redraw the canvas.
+     */
+    const unsubscribe =
+      engine.subscribe(() => {
+        render();
+      });
 
-    window.addEventListener("resize" ,resize)
-
-    return () => {
-      window.removeEventListener("resize",resize)
-    }
+    return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    resize();
+
+    window.addEventListener(
+      "resize",
+      resize
+    );
+
+    return () => {
+      window.removeEventListener(
+        "resize",
+        resize
+      );
+    };
+  }, []);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas =
+      canvasRef.current;
 
     if (!canvas) return;
 
-    function handleWheel(e: WheelEvent) {
+    function handleWheel(
+      e: WheelEvent
+    ) {
       e.preventDefault();
 
-      const camera = cameraRef.current;
-
-      const mouseWorld = screenToWorld(
-        e.clientX,
-        e.clientY
-      );
+      const camera =
+        engine.getState().camera;
 
       const zoomFactor =
-        e.deltaY < 0 ? 1.1 : 0.9;
+        e.deltaY < 0
+          ? 1.1
+          : 0.9;
 
-      const newZoom = Math.min(
-        Math.max(
-          camera.zoom * zoomFactor,
-          0.1
-        ),
-        5
-      );
+      const newZoom =
+        camera.zoom * zoomFactor;
 
-      camera.zoom = newZoom;
+      engine.dispatch({
+        type: "ZOOM",
 
-      camera.x =
-        e.clientX -
-        mouseWorld.x * camera.zoom;
+        zoom: newZoom,
 
-      camera.y =
-        e.clientY -
-        mouseWorld.y * camera.zoom;
-
-      render();
+        mouseX: e.clientX,
+        mouseY: e.clientY,
+      });
     }
 
-    canvas.addEventListener("wheel", handleWheel, {
-      passive: false,
-    });
+    canvas.addEventListener(
+      "wheel",
+      handleWheel,
+      {
+        passive: false,
+      }
+    );
 
     return () => {
-      canvas.removeEventListener("wheel", handleWheel);
+      canvas.removeEventListener(
+        "wheel",
+        handleWheel
+      );
     };
   }, []);
 
@@ -254,12 +370,18 @@ function App() {
       <canvas
         ref={canvasRef}
         className="fixed inset-0 h-full w-full touch-none"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
+        onPointerDown={
+          handlePointerDown
+        }
+        onPointerMove={
+          handlePointerMove
+        }
+        onPointerUp={
+          handlePointerUp
+        }
       />
     </main>
   );
 }
 
-export default App
+export default App;

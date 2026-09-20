@@ -1,32 +1,75 @@
-// @miro/shared — the single source of truth for the domain model,
-// consumed by both apps/web and apps/server.
-//
-// This is intentionally minimal. Flesh out the real domain types
-// (Shape, BaseShape, BoardDocument, Camera) in ticket P0-3.
+export const SHARED_VERSION = "0.0.0";
 
-export const SHARED_VERSION = '0.0.0'
-
-/** A point in 2D space. Placeholder primitive — expand in P0-3. */
+/** A point in 2D space. */
 export interface Point {
-  x: number
-  y: number
+  x: number;
+  y: number;
 }
-
-export type ShapeId = String
-
-export interface BaseShape {
-  id: ShapeId;
-  type: 'rect' | 'ellipse' | 'sticky' | 'text' | 'freehand';
-  x: number; y: number;        // world coords (top-left / anchor)
-  width: number; height: number;
-  rotation?: number;
-  z: number;                    // stacking order
-  // style fields: fill, stroke, etc. (per-type extensions)
-}
-
 
 export type Camera = {
-  x:number,
-  y:number,
-  zoom:number
+  x: number;
+  y: number;
+  zoom: number;
+};
+
+export type ShapeId = string;
+
+export type Shape = {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type Selection = {
+  ids: ShapeId[];
+};
+
+export type EngineState = {
+  document: BoardDocument;
+  camera: Camera;
+  selection: Selection;
+};
+
+export interface BoardDocument {
+  version: number;
+  id: string;
+  name: string;
+  shapes: Record<ShapeId, Shape>;
+  // ordering derived from shape.z
 }
+
+export type Command =
+  | {
+      type: "CREATE_SHAPE";
+      shape: Shape;
+    }
+  | {
+      type: "MOVE_SHAPE";
+      id: string;
+      /** Shape's world position before the move (for invert). */
+      from: { x: number; y: number };
+      /** Shape's world position after the move. */
+      to: { x: number; y: number };
+    }
+  | {
+      type:"DELETE_SHAPE",
+      shapeId:ShapeId,
+      shape:Shape
+    }
+  | {
+      type: "PAN";
+      dx: number;
+      dy: number;
+    }
+  | {
+      type: "ZOOM";
+      zoom: number;
+      mouseX: number;
+      mouseY: number;
+    }
+  | {
+      type: "SELECT";
+      ids: ShapeId[];
+    };
