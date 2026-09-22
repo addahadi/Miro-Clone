@@ -12,14 +12,62 @@ export type Camera = {
   zoom: number;
 };
 
+/**
+ * Convert a point from world space to screen (CSS pixel) space.
+ *
+ * The transform is `screen = world * zoom + cameraOffset`. This is the
+ * ONLY place the forward transform math lives — never hand-roll it inline.
+ */
+export function worldToScreen(pt: Point, camera: Camera): Point {
+  return {
+    x: pt.x * camera.zoom + camera.x,
+    y: pt.y * camera.zoom + camera.y,
+  };
+}
+
+/**
+ * Convert a point from screen (CSS pixel) space to world space.
+ *
+ * Inverse of {@link worldToScreen}: `world = (screen - cameraOffset) / zoom`.
+ */
+export function screenToWorld(pt: Point, camera: Camera): Point {
+  return {
+    x: (pt.x - camera.x) / camera.zoom,
+    y: (pt.y - camera.y) / camera.zoom,
+  };
+}
+
 export type ShapeId = string;
 
-export type Shape = {
+/** The set of interaction tools the user can switch between. */
+export type ToolId =
+  | "select"
+  | "rectangle"
+  | "circle"
+  | "text";
+
+export type RectangleShape = BaseShape & {
+  type : "rectangle"
+}
+
+export type CircleShape = BaseShape & {
+  type : "circle"
+}
+
+export type TextShape = BaseShape & {
+  type : "text"
+  text : string
+}
+
+export type Shape = RectangleShape | CircleShape | TextShape
+
+export type BaseShape = {
   id: string;
   x: number;
   y: number;
   width: number;
   height: number;
+  z: number;
 };
 
 export type Selection = {
@@ -30,6 +78,8 @@ export type EngineState = {
   document: BoardDocument;
   camera: Camera;
   selection: Selection;
+  /** The currently active interaction tool. Ephemeral UI state (never undoable). */
+  activeTool: ToolId;
 };
 
 export interface BoardDocument {
@@ -72,4 +122,8 @@ export type Command =
   | {
       type: "SELECT";
       ids: ShapeId[];
+    }
+  | {
+      type: "SET_TOOL";
+      tool: ToolId;
     };

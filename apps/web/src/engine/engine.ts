@@ -220,6 +220,12 @@ export class Engine {
                         ids: command.ids,
                     },
                 };
+
+            case "SET_TOOL":
+                return {
+                    ...state,
+                    activeTool: command.tool,
+                };
         }
     }
 }
@@ -241,4 +247,6 @@ export const engine = new Engine({
     selection: {
         ids: [],
     },
+
+    activeTool: "select",
 });

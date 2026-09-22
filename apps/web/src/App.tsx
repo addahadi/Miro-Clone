@@ -1,88 +1,29 @@
-import {
-  useEffect,
-  useRef,
-} from "react";
+import { useEffect, useRef } from "react";
+
 import { engine } from "./engine/engine";
+import { ToolManager } from "./Tool/ToolManager";
+import { SelectTool } from "./Tool/SelectTool";
 
-
-
-type DragMode =
-  | "none"
-  | "pan"
-  | "object";
+// One tool manager for the app, wired to the engine singleton. Register the
+// tools it ships with; shape-creation tools (rect, ellipse, ...) register here
+// as they land in P1-8+.
+const toolManager = new ToolManager(engine);
+toolManager.register(new SelectTool(engine));
 
 function App() {
-  const canvasRef =
-    useRef<HTMLCanvasElement>(null);
-
-
-  const dragMode =
-    useRef<DragMode>("none");
-
-  const lastPointer = useRef({
-    x: 0,
-    y: 0,
-  });
-
-  function screenToWorld(
-    screenX: number,
-    screenY: number
-  ) {
-    const camera = engine.getState().camera;
-
-    return {
-      x:
-        (screenX - camera.x) /
-        camera.zoom,
-
-      y:
-        (screenY - camera.y) /
-        camera.zoom,
-    };
-  }
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   function resize() {
     const canvas = canvasRef.current;
 
     if (!canvas) return;
 
-    const dpr =
-      window.devicePixelRatio || 1;
+    const dpr = window.devicePixelRatio || 1;
 
-    canvas.width =
-      window.innerWidth * dpr;
-
-    canvas.height =
-      window.innerHeight * dpr;
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
 
     render();
-  }
-
-  function isPointInsideRectangle(
-    x: number,
-    y: number
-  ) {
-    const state = engine.getState();
-
-    const selectedShape =
-      Object.values(
-        state.document.shapes
-      )[0];
-
-    if (!selectedShape) {
-      return false;
-    }
-
-    return (
-      x >= selectedShape.x &&
-      x <=
-        selectedShape.x +
-          selectedShape.width &&
-      y >= selectedShape.y &&
-      y <=
-        selectedShape.y +
-          selectedShape.height
-    );
   }
 
   function render() {
@@ -90,279 +31,157 @@ function App() {
 
     if (!canvas) return;
 
-    const ctx =
-      canvas.getContext("2d");
+    const ctx = canvas.getContext("2d");
 
     if (!ctx) return;
 
-    const dpr =
-      window.devicePixelRatio || 1;
+    const dpr = window.devicePixelRatio || 1;
 
-    const state =
-      engine.getState();
+    const state = engine.getState();
+    const camera = state.camera;
 
-    const camera =
-      state.camera;
-
-    ctx.clearRect(
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
 
-    /*
-     * Convert drawing coordinates from
-     * physical canvas pixels to CSS pixels.
-     */
+    // Physical pixels -> CSS pixels.
     ctx.scale(dpr, dpr);
 
-    /*
-     * Camera transform.
-     */
-    ctx.translate(
-      camera.x,
-      camera.y
-    );
+    // Camera transform.
+    ctx.translate(camera.x, camera.y);
+    ctx.scale(camera.zoom, camera.zoom);
 
-    ctx.scale(
-      camera.zoom,
-      camera.zoom
-    );
-
-    /*
-     * World
-     */
-    for (const shape of Object.values(
-      state.document.shapes
-    )) {
+    // World.
+    for (const shape of Object.values(state.document.shapes)) {
       ctx.fillStyle = "black";
-
-      ctx.fillRect(
-        shape.x,
-        shape.y,
-        shape.width,
-        shape.height
-      );
+      ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
     }
 
     ctx.restore();
   }
 
   function handlePointerDown(
-    e: React.PointerEvent<HTMLCanvasElement>
+    e: React.PointerEvent<HTMLCanvasElement>,
   ) {
-    if (
-      e.button !== 0 &&
-      e.button !== 1
-    ) {
+    if (e.button !== 0 && e.button !== 1) {
       return;
     }
 
     e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
 
-    const mouseWorld =
-      screenToWorld(
-        e.clientX,
-        e.clientY
-      );
-
-    if (
-      e.button === 0 &&
-      isPointInsideRectangle(
-        mouseWorld.x,
-        mouseWorld.y
-      )
-    ) {
-      dragMode.current =
-        "object";
-
-      engine.dispatch({
-        type: "SELECT",
-        ids: ["rectangle-1"],
-      });
-    } else {
-      dragMode.current =
-        "pan";
-    }
-
-    e.currentTarget.setPointerCapture(
-      e.pointerId
+    toolManager.onPointerDown(
+      { x: e.clientX, y: e.clientY },
+      e.button,
+      e.shiftKey,
     );
-
-    lastPointer.current = {
-      x: e.clientX,
-      y: e.clientY,
-    };
   }
 
   function handlePointerMove(
-    e: React.PointerEvent<HTMLCanvasElement>
+    e: React.PointerEvent<HTMLCanvasElement>,
   ) {
-    const mode =
-      dragMode.current;
-
-    if (mode === "none") {
-      return;
-    }
-
-    const state =
-      engine.getState();
-
-    const camera =
-      state.camera;
-
-    const dx =
-      e.clientX -
-      lastPointer.current.x;
-
-    const dy =
-      e.clientY -
-      lastPointer.current.y;
-
-    if (mode === "pan") {
-      engine.dispatch({
-        type: "PAN",
-        dx,
-        dy,
-      });
-    }
-
-    if (mode === "object") {
-      const shape =
-        state.document.shapes[
-          "rectangle-1"
-        ];
-
-      if (shape) {
-        /*
-         * Pointer movement is in screen
-         * coordinates; convert the delta
-         * to world coordinates.
-         */
-        const worldDx =
-          dx / camera.zoom;
-        const worldDy =
-          dy / camera.zoom;
-
-        engine.dispatch({
-          type: "MOVE_SHAPE",
-          id: "rectangle-1",
-
-          from: {
-            x: shape.x,
-            y: shape.y,
-          },
-
-          to: {
-            x: shape.x + worldDx,
-            y: shape.y + worldDy,
-          },
-        });
-      }
-    }
-
-    lastPointer.current = {
-      x: e.clientX,
-      y: e.clientY,
-    };
+    toolManager.onPointerMove(
+      { x: e.clientX, y: e.clientY },
+      e.button,
+      e.shiftKey,
+    );
   }
 
   function handlePointerUp(
-    e: React.PointerEvent<HTMLCanvasElement>
+    e: React.PointerEvent<HTMLCanvasElement>,
   ) {
-    dragMode.current = "none";
+    toolManager.onPointerUp(
+      { x: e.clientX, y: e.clientY },
+      e.button,
+      e.shiftKey,
+    );
 
-    if (
-      e.currentTarget.hasPointerCapture(
-        e.pointerId
-      )
-    ) {
-      e.currentTarget.releasePointerCapture(
-        e.pointerId
-      );
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
     }
   }
 
+  // Renderer subscribes to the engine: redraw whenever state changes.
   useEffect(() => {
-    /*
-     * Renderer subscribes to engine.
-     *
-     * Every time the engine changes,
-     * redraw the canvas.
-     */
-    const unsubscribe =
-      engine.subscribe(() => {
-        render();
-      });
+    const unsubscribe = engine.subscribe(() => {
+      render();
+    });
 
     return unsubscribe;
   }, []);
 
+  // Full-viewport, HiDPI-crisp canvas.
   useEffect(() => {
     resize();
 
-    window.addEventListener(
-      "resize",
-      resize
-    );
+    window.addEventListener("resize", resize);
 
     return () => {
-      window.removeEventListener(
-        "resize",
-        resize
-      );
+      window.removeEventListener("resize", resize);
     };
   }, []);
 
+  // ESC aborts whatever the active tool is doing, with no committed change.
   useEffect(() => {
-    const canvas =
-      canvasRef.current;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        toolManager.onCancel();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  // Wheel zoom, toward the cursor.
+  useEffect(() => {
+    const canvas = canvasRef.current;
 
     if (!canvas) return;
 
-    function handleWheel(
-      e: WheelEvent
-    ) {
+    function handleWheel(e: WheelEvent) {
       e.preventDefault();
 
-      const camera =
-        engine.getState().camera;
-
-      const zoomFactor =
-        e.deltaY < 0
-          ? 1.1
-          : 0.9;
-
-      const newZoom =
-        camera.zoom * zoomFactor;
+      const camera = engine.getState().camera;
+      const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+      const newZoom = camera.zoom * zoomFactor;
 
       engine.dispatch({
         type: "ZOOM",
-
         zoom: newZoom,
-
         mouseX: e.clientX,
         mouseY: e.clientY,
       });
     }
 
-    canvas.addEventListener(
-      "wheel",
-      handleWheel,
-      {
-        passive: false,
-      }
-    );
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
 
     return () => {
-      canvas.removeEventListener(
-        "wheel",
-        handleWheel
-      );
+      canvas.removeEventListener("wheel", handleWheel);
     };
+  }, []);
+
+  // Seed one rectangle so there is something to select/move on a fresh board.
+  useEffect(() => {
+    if (Object.keys(engine.getState().document.shapes).length > 0) {
+      return;
+    }
+
+    engine.dispatch({
+      type: "CREATE_SHAPE",
+      shape: {
+        id: crypto.randomUUID(),
+        type: "rectangle",
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 120,
+        z: 1,
+      },
+    });
   }, []);
 
   return (
@@ -370,15 +189,9 @@ function App() {
       <canvas
         ref={canvasRef}
         className="fixed inset-0 h-full w-full touch-none"
-        onPointerDown={
-          handlePointerDown
-        }
-        onPointerMove={
-          handlePointerMove
-        }
-        onPointerUp={
-          handlePointerUp
-        }
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
       />
     </main>
   );
