@@ -1,4 +1,4 @@
-import type { Command, EngineState } from "@miro/shared";
+import type { Command, EngineState, Marquee } from "@miro/shared";
 
 export class Engine {
     private state: EngineState;
@@ -7,6 +7,8 @@ export class Engine {
 
     private undoStack: Command[] = [];
     private redoStack: Command[] = [];
+
+    private marquee: Marquee | null= null
 
     private undoableTypes = new Set([
         "CREATE_SHAPE",
@@ -18,6 +20,10 @@ export class Engine {
         this.state = initialState;
     }
 
+
+    getMarquee(){
+        return this.marquee
+    }
     getState() {
         return this.state;
     }
@@ -35,6 +41,17 @@ export class Engine {
 
         this.notify();
     }
+
+    setMarquee(marquee: Marquee): void {
+        this.marquee = marquee;
+        this.notify();
+    }
+
+    clearMarquee(): void {
+        this.marquee = null;
+        this.notify();
+    }
+
 
     undo() {
         const command = this.undoStack.pop();

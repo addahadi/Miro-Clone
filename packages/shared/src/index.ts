@@ -90,6 +90,14 @@ export interface BoardDocument {
   // ordering derived from shape.z
 }
 
+
+export type Marquee = {
+  x:number
+  y:number
+  width : number
+  height : number
+}
+
 export type Command =
   | {
       type: "CREATE_SHAPE";

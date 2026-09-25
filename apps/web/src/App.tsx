@@ -2,13 +2,13 @@ import { useEffect, useRef } from "react";
 
 import { engine } from "./engine/engine";
 import { ToolManager } from "./Tool/ToolManager";
-import { SelectTool } from "./Tool/SelectTool";
+import { PointerTool } from "./Tool/PointerTool";
 
 // One tool manager for the app, wired to the engine singleton. Register the
 // tools it ships with; shape-creation tools (rect, ellipse, ...) register here
 // as they land in P1-8+.
 const toolManager = new ToolManager(engine);
-toolManager.register(new SelectTool(engine));
+toolManager.register(new PointerTool(engine));
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -56,6 +56,29 @@ function App() {
       ctx.fillStyle = "black";
       ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
     }
+
+
+    const marquee = engine.getMarquee();
+
+  if (marquee) {
+    ctx.fillStyle = "rgba(0, 120, 255, 0.15)";
+    ctx.strokeStyle = "rgb(0, 120, 255)";
+    ctx.lineWidth = 1 / camera.zoom;
+
+    ctx.fillRect(
+      marquee.x,
+      marquee.y,
+      marquee.width,
+      marquee.height,
+    );
+
+    ctx.strokeRect(
+      marquee.x,
+      marquee.y,
+      marquee.width,
+      marquee.height,
+    );
+  }
 
     ctx.restore();
   }
