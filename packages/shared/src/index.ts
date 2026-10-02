@@ -117,6 +117,17 @@ export type Command =
       shape:Shape
     }
   | {
+    
+      type: "MOVE_SHAPES";
+      moves: {
+          id: ShapeId;
+          from: Point;
+          to: Point;
+      }[];
+
+    }
+
+  | {
       type: "PAN";
       dx: number;
       dy: number;

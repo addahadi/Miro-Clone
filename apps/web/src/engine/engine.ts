@@ -1,4 +1,5 @@
-import type { Command, EngineState, Marquee } from "@miro/shared";
+import type { Command, EngineState, Marquee, Point, ShapeId } from "@miro/shared";
+import type { ToolPointerEvent } from "../Tool/tool";
 
 export class Engine {
     private state: EngineState;
@@ -52,6 +53,37 @@ export class Engine {
         this.notify();
     }
 
+    MoveShape(ids:MapIterator<string> , e:ToolPointerEvent){
+        
+        for (const id of ids) {
+            const shape = this.state.document.shapes[id]
+            if (!shape) continue
+
+            this.state.document.shapes[id] = {
+                ...shape,
+                x: shape.x + e.worldDelta.x,
+                y: shape.y + e.worldDelta.y,
+            }
+        }
+        this.notify()
+
+    }
+
+    RestorePositions(origins: Map<ShapeId, Point>) {
+    for (const [id, origin] of origins) {
+        const shape = this.state.document.shapes[id];
+
+        if (!shape) continue;
+
+        this.state.document.shapes[id] = {
+            ...shape,
+            x: origin.x,
+            y: origin.y,
+        };
+    }
+
+    this.notify();
+}
 
     undo() {
         const command = this.undoStack.pop();
@@ -191,6 +223,30 @@ export class Engine {
                         },
                     },
                 };
+            case "MOVE_SHAPES": {
+
+                const updatedShapes = { ...state.document.shapes };
+
+                for (const move of command.moves) {
+                    const shape = updatedShapes[move.id];
+
+                    if (!shape) continue;
+
+                    updatedShapes[move.id] = {
+                        ...shape,
+                        x: move.to.x,
+                        y: move.to.y,
+                    };
+                }
+
+                return {
+                    ...state,
+                    document: {
+                        ...state.document,
+                        shapes: updatedShapes,
+                    },
+                };
+            }
 
             case "PAN":
                 return {

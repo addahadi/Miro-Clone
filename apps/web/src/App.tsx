@@ -205,7 +205,21 @@ function App() {
         z: 1,
       },
     });
+
+    engine.dispatch({
+      type: "CREATE_SHAPE",
+      shape: {
+        id: crypto.randomUUID(),
+        type: "rectangle",
+        x: 150,
+        y: 150,
+        width: 200,
+        height: 120,
+        z: 1,
+      },
+    });
   }, []);
+
 
   return (
     <main className="w-screen h-screen">

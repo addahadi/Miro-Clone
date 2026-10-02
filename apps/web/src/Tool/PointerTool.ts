@@ -27,10 +27,13 @@ export class PointerTool implements Tool {
     }
 
     onDeactivate(): void {
-        this.interaction = { kind: "idle" };
-        this.engine.clearMarquee()
-    }
+        if (this.interaction.kind === "move") {
+            this.engine.RestorePositions(this.interaction.origins);
+        }
 
+        this.interaction = { kind: "idle" };
+        this.engine.clearMarquee();
+    }
 
     onPointerDown(e: ToolPointerEvent): void {
         if (e.button !== 0 && e.button !== 1) {
@@ -131,7 +134,10 @@ export class PointerTool implements Tool {
         });
     }
 
-    private intersects(shape: Shape, marquee: Marquee): boolean {
+    private intersects(
+        shape: Shape,
+        marquee: Marquee,
+    ): boolean {
         return (
             shape.x < marquee.x + marquee.width &&
             shape.x + shape.width > marquee.x &&
@@ -160,65 +166,81 @@ export class PointerTool implements Tool {
             );
 
             this.engine.setMarquee(rect);
-
             this.intersect(rect);
 
             return;
         }
 
         if (interaction.kind === "move") {
-            for (const id of interaction.origins.keys()) {
-                const shape =
-                    this.engine.getState().document.shapes[id];
-
-                if (!shape) continue;
-
-                this.engine.dispatch({
-                    type: "MOVE_SHAPE",
-                    id,
-                    from: {
-                        x: shape.x,
-                        y: shape.y,
-                    },
-                    to: {
-                        x: shape.x + e.worldDelta.x,
-                        y: shape.y + e.worldDelta.y,
-                    },
-                });
-            }
+            this.engine.MoveShape(
+                interaction.origins.keys(),
+                e,
+            );
         }
     }
 
     onPointerUp(): void {
-        this.engine.clearMarquee();
-        this.interaction = { kind: "idle" };
-    }
-
-    onCancel(): void {
         if (this.interaction.kind === "move") {
+            const moves = [];
+
             for (const [id, origin] of this.interaction.origins) {
                 const shape =
                     this.engine.getState().document.shapes[id];
 
-                if (!shape) continue;
+                if (!shape) {
+                    continue;
+                }
 
-                this.engine.dispatch({
-                    type: "MOVE_SHAPE",
+                if (
+                    shape.x === origin.x &&
+                    shape.y === origin.y
+                ) {
+                    continue;
+                }
+
+                moves.push({
                     id,
-                    from: {
+                    from: origin,
+                    to: {
                         x: shape.x,
                         y: shape.y,
                     },
-                    to: {
-                        x: origin.x,
-                        y: origin.y,
-                    },
                 });
             }
+
+            if (moves.length > 0) {
+                this.engine.dispatch({
+                    type: "MOVE_SHAPES",
+                    moves,
+                });
+            }
+
+            this.interaction = {
+                kind: "idle",
+            };
+
+            return;
         }
 
-        this.engine.clearMarquee()
-        this.interaction = { kind: "idle" };
+        this.engine.clearMarquee();
+
+        this.interaction = {
+            kind: "idle",
+        };
+    }
+
+    onCancel(): void {
+        if (this.interaction.kind === "move") {
+            this.engine.RestorePositions(
+                this.interaction.origins,
+            );
+        }
+
+        this.engine.clearMarquee();
+
+        this.interaction = {
+            kind: "idle",
+        };
     }
 
     private snapshotPositions(
@@ -243,7 +265,9 @@ export class PointerTool implements Tool {
         return origins;
     }
 
-    private topmostAt(point: Point): Shape | undefined {
+    private topmostAt(
+        point: Point,
+    ): Shape | undefined {
         const shapes = Object.values(
             this.engine.getState().document.shapes,
         );
@@ -251,7 +275,9 @@ export class PointerTool implements Tool {
         let best: Shape | undefined;
 
         for (const shape of shapes) {
-            if (!this.containsPoint(shape, point)) continue;
+            if (!this.containsPoint(shape, point)) {
+                continue;
+            }
 
             if (!best || shape.z > best.z) {
                 best = shape;
